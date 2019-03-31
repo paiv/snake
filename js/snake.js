@@ -7,6 +7,7 @@ let snakeApp = (function() {
     let cellWidth = 20
     let boardSize = {w: Math.floor(ctx.canvas.width / cellWidth), h: Math.floor(ctx.canvas.height / cellWidth)}
     let boardStroke = 'hsl(0 90% 1%)'
+    let clearColor = 'hsl(0 100% 100%)'
     let snakeColor = 'hsl(250 100% 50%)'
     let fruitColor = 'hsl(0 100% 50%)'
     
@@ -37,18 +38,27 @@ let snakeApp = (function() {
         return v2(randint(boardSize.w), randint(boardSize.h))
     }
 
-    function drawFruit(fruit) {
+    function drawBoard() {
         ctx.save()
-        ctx.fillStyle = fruitColor
+        ctx.fillStyle = clearColor
+        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
+        ctx.strokeStyle = boardStroke
+        ctx.strokeRect(0, 0, boardSize.w * cellWidth, boardSize.h * cellWidth)
+        ctx.restore()
+    }
+    
+    function drawFruit(fruit, color) {
+        ctx.save()
+        ctx.fillStyle = color || fruitColor
         ctx.beginPath()
-        ctx.rect(fruit.x * cellWidth, fruit.y * cellWidth, cellWidth, cellWidth)
+        ctx.rect(fruit.x * cellWidth + 2, fruit.y * cellWidth + 2, cellWidth - 4, cellWidth - 4)
         ctx.fill()
         ctx.restore()
     }
     
-    function drawSnake(snake) {
+    function drawSnake(snake, color) {
         ctx.save()
-        ctx.fillStyle = snakeColor
+        ctx.fillStyle = color || snakeColor
         ctx.beginPath()
         for (p of snake.body) {
             ctx.rect(p.x * cellWidth + 1, p.y * cellWidth + 1, cellWidth - 2, cellWidth - 2)
@@ -57,14 +67,16 @@ let snakeApp = (function() {
         ctx.restore()
     }
     
-    var score = 0
-    var snake = {
-        body: [rand2d()],
-        speed: v2(0, 0),
+    var scene = {
+        score: 0,
+        snake: {
+            body: [rand2d()],
+            speed: v2(0, 0),
+        },
     }
-    var fruit = makeFruit();
+    scene.fruit = makeFruit(scene.snake)
     
-    function makeFruit() {
+    function makeFruit(snake) {
         do {
             var fruit = rand2d()
         }
@@ -72,20 +84,20 @@ let snakeApp = (function() {
         return fruit
     }
     
-    function crawl(snake) {
-        if (snake.speed.x === 0 && snake.speed.y === 0) {
+    function crawl(scene) {
+        if (scene.snake.speed.x === 0 && scene.snake.speed.y === 0) {
             return snake
         }
-        var snake = Object.assign({}, snake, {body: snake.body.slice()})
+        var snake = Object.assign({}, scene.snake, {body: scene.snake.body.slice()})
         let head = snake.body[0].add(snake.speed)
         if (head.x < 0 || head.y < 0 || head.x >= boardSize.w || head.y >= boardSize.h) {
             return
         }
 
-        if (fruit && head.eq(fruit)) {
-            score += snake.body.length
+        if (scene.fruit && head.eq(scene.fruit)) {
+            scene.score += snake.body.length
             snake.body.unshift(head)
-            fruit = makeFruit()
+            scene.fruit = makeFruit(snake)
         }
         else {
             snake.body.pop()
@@ -94,19 +106,26 @@ let snakeApp = (function() {
             snake.body.unshift(head)
         }
 
-        return snake
+        scene.snake = snake
     }
     
-    function drawScene() {
-        scoreel.textContent = score
+    function clearScene(scene) {
+        if (scene.snake) {
+            drawSnake(scene.snake, clearColor)
+        }
+        if (scene.fruit) {
+            drawFruit(scene.fruit, clearColor)
+        }
+    }
+    
+    function drawScene(scene) {
+        scoreel.textContent = scene.score
         
-        if (!snake) return
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
-        ctx.strokeStyle = boardStroke
-        ctx.strokeRect(0, 0, boardSize.w * cellWidth, boardSize.h * cellWidth)
-        drawSnake(snake)
-        if (fruit) {
-            drawFruit(fruit)
+        if (!scene.snake) return
+        
+        drawSnake(scene.snake)
+        if (scene.fruit) {
+            drawFruit(scene.fruit)
         }
     }
 
@@ -122,7 +141,7 @@ let snakeApp = (function() {
     function keyboard(event) {
         v = keymap[event.key]
         if (v) {
-            if (!input_v2 && !snake.speed.eq(v.mul(-1))) {
+            if (!input_v2 && !scene.snake.speed.eq(v.mul(-1))) {
                 input_v2 = v
             }
             event.preventDefault()
@@ -130,21 +149,24 @@ let snakeApp = (function() {
     }
     
     function tick() {
+        clearScene(scene)
+        
         if (input_v2) {
-            snake.speed = input_v2
+            scene.snake.speed = input_v2
             input_v2 = undefined
         }
         
-        snake = crawl(snake)
+        crawl(scene)
         
-        drawScene()
+        drawScene(scene)
         
-        if (!snake) {
+        if (!scene.snake) {
             window.clearInterval(tickTimer)
         }
     }
-    
-    drawScene()
+
+    drawBoard()
+    drawScene(scene)
     document.addEventListener('keydown', keyboard)
     var tickTimer = window.setInterval(tick, 250)
 })
